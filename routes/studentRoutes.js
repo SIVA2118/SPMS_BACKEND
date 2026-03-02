@@ -4,16 +4,36 @@ const Project = require('../models/Project');
 const { protect, authorizeDeveloper } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
 const router = express.Router();
 
 // Multer Storage Configuration
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        let resource_type = 'auto'; // default
+
+        if (['.zip', '.pdf', '.docx', '.doc', '.ppt', '.pptx', '.txt'].includes(ext)) {
+            resource_type = 'raw';
+        } else if (['.mp4', '.mov', '.avi', '.mkv'].includes(ext)) {
+            resource_type = 'video';
+        }
+
+        return {
+            folder: 'spms_uploads',
+            resource_type: resource_type,
+            public_id: `${Date.now()}-${file.originalname}`
+        };
     },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
 });
 
 const upload = multer({
@@ -21,7 +41,6 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const filetypes = /zip|pdf|mp4|mov|avi|mkv/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = filetypes.test(file.mimetype);
 
         if (extname) {
             return cb(null, true);
